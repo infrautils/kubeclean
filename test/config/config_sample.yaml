@@ -1,15 +1,12 @@
 dryRun: true
+
 batchSize: 10
+
 podCleanupConfig:
   enabled: true
   rules:
-    - name: initial-rule
+    - name: modified-rule
       enabled: true
       ttl: "1h"
-      phase: "Succeeded"
-      namespaces: [default]
-    - name: second-rule
-      enabled: true
-      ttl: "1h"
-      phase: "Succeeded"
+      phase: "Pending"
       namespaces: []

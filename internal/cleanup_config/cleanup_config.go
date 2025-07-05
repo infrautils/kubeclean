@@ -3,6 +3,8 @@ package cleanupconfig
 import (
 	"fmt"
 	"time"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 //
@@ -37,16 +39,6 @@ func (c *CleanupConfig) Validate() error {
 	}
 
 	return nil
-}
-
-//
-// Resource Selector Utility
-//
-
-// LabelSelector specifies Kubernetes-style label selection criteria.
-// It’s used to filter resources based on their labels.
-type LabelSelector struct {
-	MatchLabels map[string]string `yaml:"matchLabels,omitempty"` // Key-value pairs of labels to match.
 }
 
 //
@@ -113,12 +105,12 @@ func (p *PodCleanupConfig) Validate() error {
 
 // PodCleanRule defines an individual cleanup rule for selecting and deleting pods.
 type PodCleanRule struct {
-	Name       string        `yaml:"name"`                 // Unique name of the rule for identification.
-	Enabled    bool          `yaml:"enabled,omitempty"`    // If false, the rule is skipped during processing.
-	Selector   LabelSelector `yaml:"selector,omitempty"`   // Label selector to filter pods.
-	Phase      string        `yaml:"phase,omitempty"`      // Pod phase (e.g., "Succeeded", "Failed") to filter pods.
-	TTL        Duration      `yaml:"ttl"`                  // Time-to-live duration after which pods are eligible for cleanup.
-	Namespaces []string      `yaml:"namespaces,omitempty"` // Specific namespaces where the rule applies.
+	Name       string               `yaml:"name"`                 // Unique name of the rule for identification.
+	Enabled    bool                 `yaml:"enabled,omitempty"`    // If false, the rule is skipped during processing.
+	Selector   metav1.LabelSelector `yaml:"selector,omitempty"`   // Label selector to filter pods.
+	Phase      string               `yaml:"phase,omitempty"`      // Pod phase (e.g., "Succeeded", "Failed") to filter pods.
+	TTL        Duration             `yaml:"ttl"`                  // Time-to-live duration after which pods are eligible for cleanup.
+	Namespaces []string             `yaml:"namespaces,omitempty"` // Specific namespaces where the rule applies.
 }
 
 // Validate checks whether the PodCleanRule is correctly defined.

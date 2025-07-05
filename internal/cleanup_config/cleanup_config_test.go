@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestCleanupConfig_SetDefaults(t *testing.T) {
@@ -195,7 +196,7 @@ func TestPodCleanRule_Validate(t *testing.T) {
 				Name:    "valid-selector",
 				Enabled: true,
 				TTL:     Duration{Duration: time.Hour},
-				Selector: LabelSelector{
+				Selector: metav1.LabelSelector{
 					MatchLabels: map[string]string{"app": "myapp"},
 				},
 			},
