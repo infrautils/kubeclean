@@ -21,9 +21,12 @@ import (
 	"flag"
 	"os"
 	"path/filepath"
+	"time"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
+	cleanupconfig "github.com/infrautils/kubeclean/internal/cleanup_config"
+	"github.com/infrautils/kubeclean/internal/controller"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -60,6 +63,8 @@ func main() {
 	var secureMetrics bool
 	var enableHTTP2 bool
 	var tlsOpts []func(*tls.Config)
+	var configPath string
+	var batchCleanupInterval time.Duration
 	flag.StringVar(&metricsAddr, "metrics-bind-address", "0", "The address the metrics endpoint binds to. "+
 		"Use :8443 for HTTPS or :8080 for HTTP, or leave as 0 to disable the metrics service.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
@@ -77,6 +82,9 @@ func main() {
 	flag.StringVar(&metricsCertKey, "metrics-cert-key", "tls.key", "The name of the metrics server key file.")
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
+	flag.StringVar(&configPath, "config", "/etc/config/config.yaml", "Path to configuration file")
+	flag.DurationVar(&batchCleanupInterval, "batch-cleanup-interval", time.Minute, "Interval for batch cleanup runs")
+
 	opts := zap.Options{
 		Development: true,
 	}
@@ -84,6 +92,19 @@ func main() {
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+
+	cleanupConfig, err := cleanupconfig.LoadConfigFromFile(configPath)
+
+	if err != nil {
+		setupLog.Error(err, "unable to load config file", "path", configPath)
+		os.Exit(1)
+	}
+
+	setupLog.Info("Loaded config file", "path", configPath)
+
+	ctx := ctrl.SetupSignalHandler()
+
+	go cleanupconfig.WatchConfig(ctx, configPath, cleanupConfig, time.NewTicker(30*time.Second))
 
 	// if the enable-http2 flag is false (the default), http/2 should be disabled
 	// due to its vulnerabilities. More specifically, disabling http/2 will
@@ -198,6 +219,14 @@ func main() {
 		os.Exit(1)
 	}
 
+	batchCleanupReconciler := controller.NewPodCleanController(
+		mgr.GetClient(),
+		mgr.GetScheme(),
+		cleanupConfig,
+	)
+
+	go controller.RunPodCleanJob(ctx, batchCleanupReconciler, batchCleanupInterval)
+
 	// +kubebuilder:scaffold:builder
 
 	if metricsCertWatcher != nil {
@@ -226,7 +255,7 @@ func main() {
 	}
 
 	setupLog.Info("starting manager")
-	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+	if err := mgr.Start(ctx); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}

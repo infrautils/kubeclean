@@ -21,3 +21,11 @@ jobs:
         run: |
           go mod tidy
           make test
+
+      - name: Building project
+        run: |
+          make build
+
+      - name: Building a docker image
+        run: |
+          make docker-build IMG=kubeclean:pr

@@ -1,0 +1,12 @@
+dryRun: true
+
+batchSize: 10
+
+podCleanupConfig:
+  enabled: true
+  rules:
+    - name: modified-rule
+      enabled: true
+      ttl: "1h"
+      phase: "Pending"
+      namespaces: []
