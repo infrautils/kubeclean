@@ -28,4 +28,4 @@ jobs:
 
       - name: Building a docker image
         run: |
-          make docker-build IMG=kubeclean:${{ github.event.pull_request.number }}
+          make docker-build IMG=kubeclean:pr
