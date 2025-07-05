@@ -37,24 +37,24 @@ func NewPodMatcher(k8sClient client.Client) *PodMatcher {
 	return &PodMatcher{client: k8sClient}
 }
 
-func (r *PodCleanController) runCleanUp(ctx context.Context) {
-	if !r.CleanupConfig.PodCleanupConfig.Enabled {
+func (c *PodCleanController) RunCleanUp(ctx context.Context) {
+	if !c.CleanupConfig.PodCleanupConfig.Enabled {
 		return
 	}
 
 	logger := log.FromContext(ctx)
+	logger.Info("Starting pod cleanup")
 
-	logger.Info("Starting batch cleanup of pods")
-
-	for _, rule := range r.CleanupConfig.PodCleanupConfig.Rules {
+	for _, rule := range c.CleanupConfig.PodCleanupConfig.Rules {
 		if !rule.Enabled {
 			continue
 		}
 
 		logger.Info("Processing cleanup rule", "rule", rule.Name)
-		pods, err := r.PodMatcher.findPodsToCleanup(ctx, rule)
+
+		pods, err := c.PodMatcher.FindPodsToCleanup(ctx, rule)
 		if err != nil {
-			logger.Error(err, "Failed to find pods for cleanup", "rule", rule.Name)
+			logger.Error(err, "Failed to find pods", "rule", rule.Name)
 			continue
 		}
 
@@ -64,22 +64,20 @@ func (r *PodCleanController) runCleanUp(ctx context.Context) {
 		}
 
 		logger.Info("Found pods to cleanup", "rule", rule.Name, "count", len(pods))
-		if failed := batchDeletePods(ctx, r.Client, pods, r.CleanupConfig.BatchSize, r.CleanupConfig.DryRun); failed {
-			logger.Error(fmt.Errorf("failed to batch delete pods"), "rule", rule.Name)
+
+		if err := BatchDeletePods(ctx, c.Client, pods, c.CleanupConfig.BatchSize, c.CleanupConfig.DryRun); err != nil {
+			logger.Error(err, "Failed to batch delete pods", "rule", rule.Name)
 			continue
 		}
 
 		logger.Info("Completed cleanup for rule", "rule", rule.Name, "processed", len(pods))
 	}
 
-	logger.Info("Ending batch cleanup of pods")
-
+	logger.Info("Pod cleanup completed")
 }
 
-func (pm *PodMatcher) findPodsToCleanup(ctx context.Context, rule cleanupconfig.PodCleanRule) ([]corev1.Pod, error) {
+func (pm *PodMatcher) FindPodsToCleanup(ctx context.Context, rule cleanupconfig.PodCleanRule) ([]corev1.Pod, error) {
 	logger := log.FromContext(ctx)
-	var podsToCleanup []corev1.Pod
-
 	selector, err := metav1.LabelSelectorAsSelector(&rule.Selector)
 	if err != nil {
 		return nil, fmt.Errorf("invalid label selector: %w", err)
@@ -90,21 +88,21 @@ func (pm *PodMatcher) findPodsToCleanup(ctx context.Context, rule cleanupconfig.
 		namespaces = []string{""} // All namespaces
 	}
 
+	var podsToCleanup []corev1.Pod
+
 	for _, namespace := range namespaces {
 		var podList corev1.PodList
-		opts := &client.ListOptions{
+		if err := pm.client.List(ctx, &podList, &client.ListOptions{
 			Namespace:     namespace,
 			LabelSelector: selector,
-		}
-
-		if err := pm.client.List(ctx, &podList, opts); err != nil {
+		}); err != nil {
 			logger.Error(err, "Failed to list pods", "namespace", namespace)
 			continue
 		}
 
 		for i := range podList.Items {
 			pod := &podList.Items[i]
-			if pm.shouldCleanupPod(pod, rule) {
+			if pm.ShouldCleanupPod(pod, rule) {
 				podsToCleanup = append(podsToCleanup, *pod)
 			}
 		}
@@ -113,12 +111,12 @@ func (pm *PodMatcher) findPodsToCleanup(ctx context.Context, rule cleanupconfig.
 	return podsToCleanup, nil
 }
 
-func (pm *PodMatcher) shouldCleanupPod(pod *corev1.Pod, rule cleanupconfig.PodCleanRule) bool {
+func (pm *PodMatcher) ShouldCleanupPod(pod *corev1.Pod, rule cleanupconfig.PodCleanRule) bool {
 	if string(pod.Status.Phase) != rule.Phase {
 		return false
 	}
 
-	if disabled, exists := pod.Annotations["kubeclean/disabled"]; exists && disabled == "true" {
+	if pod.Annotations["kubeclean/disabled"] == "true" {
 		return false
 	}
 
@@ -127,7 +125,7 @@ func (pm *PodMatcher) shouldCleanupPod(pod *corev1.Pod, rule cleanupconfig.PodCl
 		if parsedTTL, err := time.ParseDuration(ttlStr); err == nil {
 			ttl = parsedTTL
 		} else {
-			log.FromContext(context.TODO()).Info("Invalid TTL annotation, using rule TTL", "pod", pod.Name, "error", err)
+			log.FromContext(context.TODO()).Info("Invalid TTL annotation; using rule TTL", "pod", pod.Name, "error", err)
 		}
 	}
 
@@ -135,10 +133,8 @@ func (pm *PodMatcher) shouldCleanupPod(pod *corev1.Pod, rule cleanupconfig.PodCl
 	return age > ttl
 }
 
-func batchDeletePods(ctx context.Context, k8sClient client.Client, pods []corev1.Pod, batchSize int, dryRun bool) bool {
+func BatchDeletePods(ctx context.Context, k8sClient client.Client, pods []corev1.Pod, batchSize int, dryRun bool) error {
 	logger := log.FromContext(ctx)
-
-	var anyFailed bool
 
 	for i := 0; i < len(pods); i += batchSize {
 		end := i + batchSize
@@ -151,29 +147,25 @@ func batchDeletePods(ctx context.Context, k8sClient client.Client, pods []corev1
 
 		for _, pod := range batch {
 			if dryRun {
-				logger.Info("DRY RUN: Would delete pod", "pod", pod.Name, "namespace", pod.Namespace, "age", time.Since(pod.CreationTimestamp.Time), "phase", pod.Status.Phase)
+				logger.Info("DRY RUN: Would delete pod", "pod", pod.Name, "namespace", pod.Namespace)
 				continue
 			}
 
-			logger.Info("Deleting pod", "pod", pod.Name, "namespace", pod.Namespace, "age", time.Since(pod.CreationTimestamp.Time))
+			logger.Info("Deleting pod", "pod", pod.Name, "namespace", pod.Namespace)
 			if err := k8sClient.Delete(ctx, &pod); err != nil {
 				logger.Error(err, "Failed to delete pod", "pod", pod.Name, "namespace", pod.Namespace)
-
-				anyFailed = true
-				continue
 			}
 		}
 
-		// Sleep between batches to avoid API server overload
 		if end < len(pods) {
 			time.Sleep(100 * time.Millisecond)
 		}
 	}
 
-	return anyFailed
+	return nil
 }
 
-func RunPodCleanJob(ctx context.Context, podCleanController *PodCleanController, interval time.Duration) {
+func RunPodCleanJob(ctx context.Context, controller *PodCleanController, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
@@ -181,14 +173,11 @@ func RunPodCleanJob(ctx context.Context, podCleanController *PodCleanController,
 		select {
 		case <-ticker.C:
 			runCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
-
-			defer cancel()
-
-			podCleanController.runCleanUp(runCtx)
+			controller.RunCleanUp(runCtx)
+			cancel()
 
 		case <-ctx.Done():
 			return
 		}
 	}
-
 }
