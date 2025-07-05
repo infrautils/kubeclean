@@ -94,8 +94,6 @@ func (p *PodCleanupConfig) Validate() error {
 
 	var errorMessages string
 
-	fmt.Println(p.Rules)
-
 	for idx, rule := range p.Rules {
 		if err := rule.Validate(); err != nil {
 			errorMessages += fmt.Sprintf("rule %d (%s): %v\n", idx+1, rule.Name, err)

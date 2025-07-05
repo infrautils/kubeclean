@@ -1,6 +1,8 @@
 package cleanupconfig
 
 import (
+	"context"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -263,5 +265,184 @@ podCleanupConfig:
 	err = cfg.Validate()
 
 	require.Error(t, err)
+
+}
+
+// Test case for loading the configuration
+func writeTempConfig(t *testing.T, yamlConfig string) string {
+	t.Helper()
+
+	tempFile, err := os.CreateTemp("", "config-*.yaml")
+	require.NoError(t, err)
+
+	_, err = tempFile.Write([]byte(yamlConfig))
+	require.NoError(t, err)
+	require.NoError(t, tempFile.Close())
+
+	return tempFile.Name()
+}
+
+func deleteTempFile(t *testing.T, filePath string) {
+	if err := os.Remove(filePath); err != nil {
+		t.Logf("failed to remove temp file: %v", err)
+	}
+}
+
+func Test_LoadConfigFromFile_Success(t *testing.T) {
+	yamlConfig := `
+dryRun: true
+batchSize: 20
+podCleanupConfig:
+  enabled: true
+  rules:
+    - name: test-rule
+      enabled: true
+      ttl: "1h"
+      phase: "Succeeded"
+      namespaces:
+        - default
+        - kube-system
+`
+	filePath := writeTempConfig(t, yamlConfig)
+	defer deleteTempFile(t, filePath)
+
+	_, err := LoadConfigFromFile(filePath)
+	require.NoError(t, err)
+}
+
+func Test_LoadConfigFromFile_YAMLError(t *testing.T) {
+	yamlConfig := `
+	dryRun: true
+	batchSize: 20
+	podCleanupConfig:
+	enabled: true
+	rules:
+		- name: test-rule
+		enabled: true
+		ttl: "1h"
+		phase: "Succeeded"
+		namespaces:
+			- default
+			- kube-system
+`
+	filePath := writeTempConfig(t, yamlConfig)
+	defer deleteTempFile(t, filePath)
+
+	_, err := LoadConfigFromFile(filePath)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "failed to unmarshal config")
+}
+
+func Test_LoadConfigFromFile_InvalidConfigError(t *testing.T) {
+	yamlConfig := `
+dryRun: true
+batchSize: 20
+podCleanupConfig:
+  enabled: true
+  rules:
+    - name: test-rule
+      enabled: true
+      ttl: "1h"
+      phase: ""
+      namespaces: []
+`
+	filePath := writeTempConfig(t, yamlConfig)
+	defer deleteTempFile(t, filePath)
+
+	_, err := LoadConfigFromFile(filePath)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "invalid config")
+}
+
+func Test_LoadConfigFromFile_FileReadError(t *testing.T) {
+	// Non-existent file
+	_, err := LoadConfigFromFile("non-existent-file.yaml")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "unable to read config file")
+}
+
+func Test_WatchConfig_ReloadsOnChange(t *testing.T) {
+	initialConfig := `
+dryRun: true
+batchSize: 10
+podCleanupConfig:
+  enabled: true
+  rules:
+    - name: initial-rule
+      enabled: true
+      ttl: "1h"
+      phase: "Succeeded"
+      namespaces: [default]
+`
+	updatedConfig := `
+dryRun: true
+batchSize: 50
+podCleanupConfig:
+  enabled: true
+  rules:
+    - name: updated-rule
+      enabled: true
+      ttl: "2h"
+      phase: "Succeeded"
+      namespaces: [default, kube-system]
+`
+
+	invalidConfig := `
+dryRun: true
+batchSize: 50
+podCleanupConfig:
+  enabled: true
+  rules:
+      - name: updated-rule
+      enabled: true
+      ttl: "2h"
+      phase: "Succeeded"
+      namespaces: [default, kube-system]
+`
+
+	filePath := writeTempConfig(t, initialConfig)
+	defer deleteTempFile(t, filePath)
+
+	currentConfig, err := LoadConfigFromFile(filePath)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	ticker := time.NewTicker(100 * time.Millisecond)
+
+	go WatchConfig(ctx, filePath, currentConfig, ticker)
+
+	// Give watcher some time to start
+	time.Sleep(150 * time.Millisecond)
+
+	// Modify config file to trigger reload
+	require.NoError(t, os.WriteFile(filePath, []byte(updatedConfig), 0644))
+
+	// Give enough time for watcher to detect change and reload
+	time.Sleep(300 * time.Millisecond)
+
+	// Validate config has been updated
+	require.Equal(t, 50, currentConfig.BatchSize)
+	require.Equal(t, "updated-rule", currentConfig.PodCleanupConfig.Rules[0].Name)
+	require.Equal(t, 2*time.Hour, currentConfig.PodCleanupConfig.Rules[0].TTL.Duration)
+	require.Contains(t, currentConfig.PodCleanupConfig.Rules[0].Namespaces, "kube-system")
+
+	// Modify config file to trigger reload
+	require.NoError(t, os.WriteFile(filePath, []byte(invalidConfig), 0644))
+
+	validConfig := currentConfig
+	// Give enough time for watcher to detect change and reload
+	time.Sleep(300 * time.Millisecond)
+
+	require.Equal(t, currentConfig, validConfig)
+
+	err = os.Remove(filePath)
+
+	require.NoError(t, err)
+
+	time.Sleep(300 * time.Millisecond)
+
+	require.Equal(t, currentConfig, validConfig)
 
 }

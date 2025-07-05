@@ -1,0 +1,15 @@
+dryRun: true
+batchSize: 10
+podCleanupConfig:
+  enabled: true
+  rules:
+    - name: initial-rule
+      enabled: true
+      ttl: "1h"
+      phase: "Succeeded"
+      namespaces: [default]
+    - name: second-rule
+      enabled: true
+      ttl: "1h"
+      phase: "Succeeded"
+      namespaces: []
