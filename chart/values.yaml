@@ -1,0 +1,141 @@
+# -------------------------------------------------------------------------
+# Default values for kubeclean Helm chart.
+# These values can be overridden via 'helm install --values' or '--set'
+# -------------------------------------------------------------------------
+
+# Number of pod replicas for Deployment
+replicaCount: 1
+
+# Additional annotations to apply to Pods
+podAnnotations: {}
+# Example:
+# podAnnotations:
+#   prometheus.io/scrape: "true"
+#   prometheus.io/port: "8443"
+
+# Additional labels to apply to Pods
+podLabels: {}
+# Example:
+# podLabels:
+#   environment: "production"
+
+# Pod-level Security Context (applies to entire Pod)
+podSecurityContext: {}
+# Example:
+# podSecurityContext:
+#   runAsNonRoot: true
+#   fsGroup: 2000
+
+# Container-level Security Context (applies to individual containers)
+securityContext: {}
+# Example:
+# securityContext:
+#   allowPrivilegeEscalation: false
+#   capabilities:
+#     drop: ["ALL"]
+
+# Resource requests and limits for containers
+resources: {}
+# Example:
+# resources:
+#   requests:
+#     cpu: "100m"
+#     memory: "128Mi"
+#   limits:
+#     cpu: "500m"
+#     memory: "512Mi"
+
+# Horizontal Pod Autoscaler (HPA) configuration
+autoscaling:
+  enabled: false # Set to true to enable HPA
+  minReplicas: 1 # Minimum number of replicas
+  maxReplicas: 10 # Maximum number of replicas
+  targetCPUUtilizationPercentage: 80 # Target average CPU utilization %
+  targetMemoryUtilizationPercentage: 80 # Target average Memory utilization %
+
+# Node Selector for Pod scheduling
+nodeSelector: {}
+# Example:
+# nodeSelector:
+#   kubernetes.io/os: linux
+
+# Tolerations for tainted nodes
+tolerations: []
+# Example:
+# tolerations:
+#   - key: "example-key"
+#     operator: "Equal"
+#     value: "example-value"
+#     effect: "NoSchedule"
+
+# Affinity rules for Pod scheduling
+affinity: {}
+# Example:
+# affinity:
+#   podAntiAffinity:
+#     requiredDuringSchedulingIgnoredDuringExecution:
+#       - labelSelector:
+#           matchExpressions:
+#             - key: "app"
+#               operator: In
+#               values:
+#                 - kubeclean
+#         topologyKey: "kubernetes.io/hostname"
+
+# Container image settings
+image:
+  repository: kubeclean # Container image repository
+  pullPolicy: IfNotPresent # Pull policy: Always, IfNotPresent, Never
+  tag: "latest" # Image tag (default)
+  pullSecrets: [] # List of image pull secrets
+# Example:
+# image:
+#   repository: myregistry/kubeclean
+#   pullPolicy: Always
+#   tag: "v1.2.3"
+#   pullSecrets:
+#     - name: myregistrysecret
+
+# Service configuration
+service:
+  metrics:
+    port: 8443 # Port for metrics service
+    secure: false # Enable HTTPS for metrics (true/false)
+    cert: # Certificate details if secure is true
+      SecretName: # Name of Kubernetes TLS secret
+      Name: # Certificate file name (e.g., tls.crt)
+      Key: # Certificate key file name (e.g., tls.key)
+  health:
+    port: 8081 # Port for health checks
+
+# Cleanup job configuration
+cleanup:
+  interval: 2m # Interval for running cleanup jobs (e.g., 30s, 5m)
+  config:
+    dryRun: true # Set to false to actually delete resources
+    batchSize: 10 # Number of resources to be considered per batch
+    podCleanupConfig:
+      enabled: true # Enable pod cleanup
+      rules:
+        - name: default-rule # Name of cleanup rule
+          enabled: true # Enable this rule
+          ttl: "1h" # Time to live for pods in the target phase (e.g., 1h, 30m)
+          phase: "Succeeded" # Pod phase to match (Pending, Running, Succeeded, Failed)
+          namespaces: [] # Specific namespaces to target (empty = all)
+          selector: {} # Label selector for pods
+# Example:
+# cleanup:
+#   config:
+#     dryRun: false
+#     batchSize: 5
+#     podCleanupConfig:
+#       rules:
+#         - name: completed-job-cleanup
+#           enabled: true
+#           ttl: "2h"
+#           phase: "Succeeded"
+#           namespaces:
+#             - default
+#           selector:
+#             matchLabels:
+#               job-name: my-batch-job
