@@ -1,0 +1,10 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "kubesnap.fullname" . }}-role
+  annotations:
+{{ include "kubesnap.annotations" . | indent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["list", "watch", "delete"]

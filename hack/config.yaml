@@ -10,3 +10,4 @@ podCleanupConfig:
       ttl: "1h"
       phase: "Pending"
       namespaces: []
+      selector: {}
