@@ -58,34 +58,34 @@ jobs:
           helm registry login ghcr.io -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }}
           helm push ./${CHART_NAME}-${VERSION}.tgz oci://ghcr.io/infrautils/charts
 
-      - name: Generate Release Notes
-        run: |
-          cat <<EOF > release-notes.md
-          ## 🚀 Release Details for \`${VERSION}\`
+      # - name: Generate Release Notes
+      #   run: |
+      #     cat <<EOF > release-notes.md
+      #     ## 🚀 Release Details for \`${VERSION}\`
 
-          | Component         | Version |
-          |------------------|---------|
-          | Container Image   | \`${IMAGE_NAME}:${VERSION}\` |
-          | Helm Chart Version| \`${VERSION}\` |
-          | App Version       | \`${VERSION}\` |
+      #     | Component         | Version |
+      #     |------------------|---------|
+      #     | Container Image   | \`${IMAGE_NAME}:${VERSION}\` |
+      #     | Helm Chart Version| \`${VERSION}\` |
+      #     | App Version       | \`${VERSION}\` |
 
-          ### ✅ Changes:
-          - See commit history: https://github.com/infrautils/kubeclean/commits/${VERSION}
+      #     ### ✅ Changes:
+      #     - See commit history: https://github.com/infrautils/kubeclean/commits/${VERSION}
 
-          ### ✅ Helm Install:
-          \`\`\`bash
-          helm registry login ghcr.io
-          helm pull oci://ghcr.io/infrautils/charts/kubeclean --version ${VERSION}
-          \`\`\`
+      #     ### ✅ Helm Install:
+      #     \`\`\`bash
+      #     helm registry login ghcr.io
+      #     helm pull oci://ghcr.io/infrautils/charts/kubeclean --version ${VERSION}
+      #     \`\`\`
 
-          EOF
+      #     EOF
 
-      - name: Create GitHub Release (Attach Helm Chart)
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: "${{ github.ref }}"
-          body_path: release-notes.md
-          files: |
-            ./${CHART_NAME}-${VERSION}.tgz
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # - name: Create GitHub Release (Attach Helm Chart)
+      #   uses: softprops/action-gh-release@v2
+      #   with:
+      #     tag_name: "${{ github.ref }}"
+      #     body_path: release-notes.md
+      #     files: |
+      #       ./${CHART_NAME}-${VERSION}.tgz
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
