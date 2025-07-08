@@ -42,8 +42,7 @@ spec:
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          image: {{ .Values.image.repository }}
-          tag: {{ default .Chart.AppVersion .Values.image.tag }}
+          image: {{ .Values.image.repository }}:{{ default .Chart.AppVersion .Values.image.tag }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args:
             - "--metrics-bind-address=:{{ .Values.service.metrics.port }}"
