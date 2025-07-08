@@ -1,135 +1,141 @@
 # kubeclean
-// TODO(user): Add simple overview of use/purpose
 
-## Description
-// TODO(user): An in-depth paragraph about your project and overview of use
+[![GitHub Release](https://img.shields.io/github/v/release/infrautils/kubeclean?style=flat-square)](https://github.com/infrautils/kubeclean/releases)
+[![Container Image](https://img.shields.io/badge/image-ghcr.io%2Finfrautils%2Fkubeclean-blue?style=flat-square)](https://github.com/infrautils/kubeclean/pkgs/container/kubeclean)
+[![License](https://img.shields.io/github/license/infrautils/kubeclean?style=flat-square)](LICENSE)
 
-## Getting Started
+**kubeclean** is a lightweight Kubernetes-native controller that automatically cleans up Pods based on configurable rules such as Pod phase, TTL (Time-To-Live), namespaces, and label selectors. It helps maintain cluster hygiene by removing completed or failed Pods safely and automatically.
 
-### Prerequisites
-- go version v1.24.0+
-- docker version 17.03+.
-- kubectl version v1.11.3+.
-- Access to a Kubernetes v1.11.3+ cluster.
+---
 
-### To Deploy on the cluster
-**Build and push your image to the location specified by `IMG`:**
+## 🚀 Features
 
-```sh
-make docker-build docker-push IMG=<some-registry>/kubeclean:tag
+- ✅ Automated cleanup of Pods in specific phases (e.g., `Succeeded`, `Failed`)
+- ✅ Time-to-Live (TTL) based Pod cleanup rules
+- ✅ Batch deletion support with customizable intervals
+- ✅ Dry-run mode for safe testing before actual deletion
+- ✅ Metrics and health endpoints for observability
+- ✅ Optional secure TLS for metrics endpoints
+- ✅ Easy deployment via Helm Chart & GitHub Container Registry (GHCR)
+
+---
+
+## 📦 Container Image
+
+The official container image is hosted on **GitHub Container Registry (GHCR)**:
+
+```bash
+ghcr.io/infrautils/kubeclean:<version>
 ```
 
-**NOTE:** This image ought to be published in the personal registry you specified.
-And it is required to have access to pull the image from the working environment.
-Make sure you have the proper permission to the registry if the above commands don’t work.
+---
 
-**Install the CRDs into the cluster:**
+## 📥 Installation (Helm Chart via OCI Registry)
 
-```sh
-make install
+### 1. Login to the OCI Helm registry:
+```bash
+helm registry login ghcr.io
 ```
 
-**Deploy the Manager to the cluster with the image specified by `IMG`:**
-
-```sh
-make deploy IMG=<some-registry>/kubeclean:tag
+### 2. Pull and install the chart:
+```bash
+helm pull oci://ghcr.io/infrautils/charts/kubeclean --version <version>
+helm install kubeclean ./kubeclean-<version>.tgz --namespace kubeclean --create-namespace
 ```
 
-> **NOTE**: If you encounter RBAC errors, you may need to grant yourself cluster-admin
-privileges or be logged in as admin.
+Alternatively, you can download the Helm chart from the [GitHub Releases](https://github.com/infrautils/kubeclean/releases) page.
 
-**Create instances of your solution**
-You can apply the samples (examples) from the config/sample:
+---
 
-```sh
-kubectl apply -k config/samples/
+## ⚙️ Configuration
+
+Example `values.yaml`:
+
+```yaml
+replicaCount: 1
+
+image:
+  repository: ghcr.io/infrautils/kubeclean
+  tag: "v1.2.3"
+  pullPolicy: IfNotPresent
+
+cleanup:
+  interval: 2m
+  config:
+    dryRun: false
+    batchSize: 10
+    podCleanupConfig:
+      enabled: true
+      rules:
+        - name: default-rule
+          enabled: true
+          ttl: "1h"
+          phase: "Succeeded"
+          namespaces: []
+          selector: {}
 ```
 
->**NOTE**: Ensure that the samples has default values to test it out.
+### Key Configurations:
+- **cleanup.interval**: Interval for batch cleanup runs (e.g., `2m`).
+- **cleanup.config.dryRun**: If `true`, no actual deletion will occur (test mode).
+- **podCleanupConfig.rules**: Define cleanup policies for Pods.
 
-### To Uninstall
-**Delete the instances (CRs) from the cluster:**
+Other configurable sections:
+- Resource limits (`resources`)
+- Security contexts
+- Node selectors, tolerations, and affinity
+- TLS certificates for metrics endpoints
 
-```sh
-kubectl delete -k config/samples/
+---
+
+## 📈 Metrics & Health Probes
+
+| Endpoint  | Port  | Path    |
+|-----------|-------|---------|
+| Metrics   | 8443  | `/metrics` |
+| Health    | 8081  | `/healthz` and `/readyz` |
+
+TLS can be enabled for metrics if needed.
+
+---
+
+## 🛠️ Release Workflow (Fully Automated)
+
+- Container Image & Helm Chart versions are derived from Git tags (e.g., `v1.2.3`).
+- Automated GitHub Actions:
+  - Builds and pushes container image to `ghcr.io/infrautils/kubeclean`
+  - Updates and packages Helm chart with matching version
+  - Pushes Helm chart to `ghcr.io/infrautils/charts`
+  - Generates GitHub Releases with release notes & install instructions.
+
+---
+
+## 👥 Contributing
+
+We welcome contributions! To get started:
+
+```bash
+git clone https://github.com/infrautils/kubeclean.git
+cd kubeclean
+make build  # Adjust if you use a different build tool
 ```
 
-**Delete the APIs(CRDs) from the cluster:**
+> For major changes, please open an issue to discuss before submitting pull requests.
 
-```sh
-make uninstall
-```
+---
 
-**UnDeploy the controller from the cluster:**
+## 📄 License
 
-```sh
-make undeploy
-```
+This project is licensed under the [Apache 2.0 License](LICENSE).
 
-## Project Distribution
+---
 
-Following the options to release and provide this solution to the users.
+## 📫 Support & Contact
 
-### By providing a bundle with all YAML files
+For issues or suggestions, please [open an issue](https://github.com/infrautils/kubeclean/issues).
 
-1. Build the installer for the image built and published in the registry:
+---
 
-```sh
-make build-installer IMG=<some-registry>/kubeclean:tag
-```
-
-**NOTE:** The makefile target mentioned above generates an 'install.yaml'
-file in the dist directory. This file contains all the resources built
-with Kustomize, which are necessary to install this project without its
-dependencies.
-
-2. Using the installer
-
-Users can just run 'kubectl apply -f <URL for YAML BUNDLE>' to install
-the project, i.e.:
-
-```sh
-kubectl apply -f https://raw.githubusercontent.com/<org>/kubeclean/<tag or branch>/dist/install.yaml
-```
-
-### By providing a Helm Chart
-
-1. Build the chart using the optional helm plugin
-
-```sh
-kubebuilder edit --plugins=helm/v1-alpha
-```
-
-2. See that a chart was generated under 'dist/chart', and users
-can obtain this solution from there.
-
-**NOTE:** If you change the project, you need to update the Helm Chart
-using the same command above to sync the latest changes. Furthermore,
-if you create webhooks, you need to use the above command with
-the '--force' flag and manually ensure that any custom configuration
-previously added to 'dist/chart/values.yaml' or 'dist/chart/manager/manager.yaml'
-is manually re-applied afterwards.
-
-## Contributing
-// TODO(user): Add detailed information on how you would like others to contribute to this project
-
-**NOTE:** Run `make help` for more information on all potential `make` targets
-
-More information can be found via the [Kubebuilder Documentation](https://book.kubebuilder.io/introduction.html)
-
-## License
-
-Copyright 2025.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-
+## 🙏 Credits
+- Inspired by Kubernetes best practices.
+- Maintained by the [infrautils](https://github.com/infrautils) community.
