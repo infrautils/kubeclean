@@ -16,6 +16,8 @@ Usage: {{ include "kubesnap.annotations" . }}
 {{- define "kubesnap.annotations" -}}
 helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version }}
 kubeclean/disabled: "true"
+meta.helm.sh/release-name: {{ .Release.Name }}
+meta.helm.sh/release-namespace: {{ .Release.Namespace }}
 {{- end }}
 
 
@@ -26,12 +28,6 @@ Returns full name (for consistent naming)
 {{- printf "%s" .Chart.Name | trunc 63 | trimSuffix "-" -}}
 {{- end }}
 
-{{/*
-Returns namespace
-*/}}
-{{- define "kubesnap.namespace" -}}
-{{- include "kubesnap.fullname" .}}-space
-{{- end }}
 
 
 {{/*

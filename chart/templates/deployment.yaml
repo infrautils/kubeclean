@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ include "kubesnap.fullname" . }}
-  namespace: {{ include "kubesnap.namespace" . }}
+  namespace: {{ .Release.Namespace }}
   labels:
 {{ include "kubesnap.labels" . | indent 4 }}
   annotations:

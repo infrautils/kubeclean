@@ -9,4 +9,4 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: {{ include "kubesnap.serviceAccount" . }}
-    namespace: {{include "kubesnap.namespace" .}}
+    namespace: {{ .Release.Namespace }}
