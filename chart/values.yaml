@@ -84,9 +84,9 @@ affinity: {}
 
 # Container image settings
 image:
-  repository: kubeclean # Container image repository
+  repository: ghcr.io/infrautils/kubeclean # Container image repository
   pullPolicy: IfNotPresent # Pull policy: Always, IfNotPresent, Never
-  tag: "latest" # Image tag (default)
+  tag: "" # Image tag (default)
   pullSecrets: [] # List of image pull secrets
 # Example:
 # image:
